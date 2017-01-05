@@ -20,6 +20,7 @@ import (
 	"testing"
 
 	"k8s.io/kubernetes/pkg/api/v1"
+	"k8s.io/kubernetes/pkg/controller/node/testutil"
 	metav1 "k8s.io/kubernetes/pkg/apis/meta/v1"
 )
 
@@ -86,5 +87,69 @@ func TestGetPreferredAddress(t *testing.T) {
 		if address != tc.ExpectAddress {
 			t.Errorf("%s: expected address=%q, got %q", k, tc.ExpectAddress, address)
 		}
+	}
+}
+
+func TestPatchNodeStatus(t *testing.T) {
+	testCases := []struct {
+		description           string
+		fakeNodeHandler       *testutil.FakeNodeHandler
+		nodeToPatch string
+		oldStatus NodeStatus
+		newStatus NodeStatus
+		expectedStatus NodeStatus
+	}{
+		{
+			description: "Patch nothing if the nodeName does not match any existing nodes",
+			fakeNodeHandler: &testutil.FakeNodeHandler{
+				Existing: []*v1.Node{
+					{
+						ObjectMeta: v1.ObjectMeta{
+							Name: "node0",
+						},
+					},
+				},
+				Clientset: fake.NewSimpleClientset(),
+			},
+			nodeToPatch: "node1",
+			oldStatus: v1.NodeStatus{
+				Phase: v1.NodePending,
+			},
+			newStatus: v1.NodeStatus{
+				Phase: v1.NodeRunning,
+			},
+			expectedStatus: v1.NodeStatus{
+				Phase: v1.NodePending,
+			}
+		},
+	}
+
+	testFunc := func(tc struct {
+		description           string
+		fakeNodeHandler       *testutil.FakeNodeHandler
+		nodeToPatch string
+		oldStatus NodeStatus
+		newStatus NodeStatus
+		expectedStatus NodeStatus
+	}) {
+		oldNode := &v1.Node{
+			Status: oldStatus,
+		}
+		newNode := &v1.Node{
+			Status: newStatus,
+		}
+		if patchedNode, err := PatchNodeStatus(tc.fakeNodeHandler, nodeToPatch, oldNode, newNode); err != nil {
+			t.Fatalf("%v: unexpected error when patching node", err)
+		} else {
+			if patchedNode.Phase == expectedStatus.Phase {
+				t.Logf("Passed %v", patchedNode.Status)
+			} else {
+				t.Fatalf("xxx")
+			}
+		}
+	}
+
+	for _, tc := range testCases {
+		testFunc(tc)
 	}
 }
